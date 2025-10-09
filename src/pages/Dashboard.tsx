@@ -19,16 +19,39 @@ import { IoIosRepeat } from 'react-icons/io';
 import useBackHandler from '../utils/hooks/useBackHandler.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useNavigate } from 'react-router-dom';
-type FileInfo = {
-  name: string;
-  size: number;
-  content: string;
-  lines: number;
+import { fileConvert, fileDownload, fileUpload } from '../api/fileConvertAPI.js';
+
+type ConvertedFileItem = {
+  original: string;
+  converted: string;
+  javaContent: string;
+  csharpContent: string;
+  targetFolder: string;
 };
 
-type ConversionResult = {
-  originalFiles: FileInfo[];
-  convertedFiles: FileInfo[];
+type ConversionData = {
+  totalConverted: number;
+  totalFiles: number;
+  successRate: number;
+  convertedFiles: ConvertedFileItem[];
+};
+type ApiConvertedFile = {
+  success: boolean;
+  message: string;
+  source: string;
+  jobId: string;
+  analysis: {
+    totalFiles: number;
+    csharpFiles: number;
+    solutionName: string;
+    linesOfCode: number;
+    fileSize: string;
+    namespaces: string[];
+    classes: number;
+    dependencies: string[];
+  };
+  conversion: ConversionData;
+  zipFilename: string;
 };
 
 type PageType = 'upload' | 'progress' | 'result' | 'success' | 'error';
@@ -55,22 +78,21 @@ const countLines = (content: string): number => {
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const isApiAvailable = false;
-  const API_BASE_URL = 'http://localhost:5000/api';
 
   const [currentPage, setCurrentPage] = useState<PageType>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<any | null>(null);
+  const [convertedFile, setConvertedFile] = useState<ApiConvertedFile | null>(null)  
   const [fileStats, setFileStats] = useState<FileStats | null>(null);
   const [progress, setProgress] = useState(0);
-  const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
-    const { logout } = useAuth();
-  
+    const { logout,token } = useAuth();
+  console.log(token)
     const handleLogout = () => {
       logout();
       navigate('/login');
@@ -138,7 +160,7 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -147,9 +169,15 @@ const Dashboard: React.FC = () => {
     if (files && files[0]) {
       const file = files[0];
       if (file.name.endsWith('.zip')) {
-
-        setSelectedFile(file);
-        analyzeZipFile(file);
+          const response = await fileUpload(file);
+          if(response?.success){
+              setUploadedFile(response.file)
+              setSelectedFile(file);
+              analyzeZipFile(file);
+          }else{
+              setErrorMessage('Please upload the file again!!');
+              setCurrentPage('error');      
+          }
       } else {
         setErrorMessage('Please upload a ZIP file containing .NET code');
         setCurrentPage('error');
@@ -157,227 +185,75 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files[0]) {
-      const file = files[0];
-      if (file.name.endsWith('.zip')) {
-        setSelectedFile(file);
-        analyzeZipFile(file);
-      } else {
+        const file = files[0];
+        if (file.name.endsWith('.zip')) {
+          const response = await fileUpload(file);
+          if(response?.success){
+              setUploadedFile(response.file)
+              setSelectedFile(file);
+              analyzeZipFile(file);
+          }else{
+              setErrorMessage('Please upload the file again!!');
+              setCurrentPage('error');      
+          }
+        } else {
         setErrorMessage('Please upload a ZIP file containing .NET code');
         setCurrentPage('error');
-      }
-    }
-  };
-console.log(fileStats)
-  const simulateConversion = async () => {
-    return new Promise<void>((resolve) => {
-      let currentProgress = 0;
-      const interval = setInterval(() => {
-        currentProgress += Math.random() * 8 + 2;
-        if (currentProgress >= 100) {
-          currentProgress = 100;
-          clearInterval(interval);
-          resolve();
         }
-        setProgress(Math.min(currentProgress, 100));
-      }, 200);
-    });
-  };
+    }
+    };
 
   const handleConvert = async () => {
     if (!selectedFile) return;
 
-    // setCurrentPage('progress');
     setProgress(0);
-
-    if (isApiAvailable) {
-      // API Mode: Call real backend APIs
-      const progressInterval = simulateProgress();
+    const progressInterval = simulateProgress(setProgress);
 
       try {
-        // STEP 1: Upload the file
-        const uploadFormData = new FormData();
-        uploadFormData.append('file', selectedFile);
+        const convertResponse = await fileConvert(uploadedFile.path);
+        console.log(convertResponse);
+        setConvertedFile(convertResponse);
 
-        const uploadResponse = await fetch(`${API_BASE_URL}/upload`, {
-          method: 'POST',
-          body: uploadFormData,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error('Upload failed');
-        }
-
-        const uploadData = await uploadResponse.json();
-        const fileId = uploadData.fileId || uploadData.id;
-
-        // STEP 2: Start conversion
-        const convertResponse = await fetch(`${API_BASE_URL}/convert`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileId }),
-        });
-
-        if (!convertResponse.ok) {
-          throw new Error('Conversion failed');
-        }
-
-        // STEP 3: Download converted zip
-        const downloadResponse = await fetch(`${API_BASE_URL}/download/${fileId}`);
-        
-        if (!downloadResponse.ok) {
-          throw new Error('Download failed');
-        }
-
-        const convertedZipBlob = await downloadResponse.blob();
-        
         clearInterval(progressInterval);
-        setProgress(100);
 
-        // STEP 4: Parse both original and converted files
-        await parseZipFiles(selectedFile, convertedZipBlob);
+        setProgress(100);
 
         setTimeout(() => {
           setCurrentPage('result');
-        }, 500);
-
+        }, 800);
       } catch (error) {
         clearInterval(progressInterval);
         console.error('Conversion error:', error);
         setErrorMessage(error instanceof Error ? error.message : 'Conversion failed');
         setCurrentPage('error');
       }
-    } else {
-      // Static Mode: Simulate conversion without APIs
-      await simulateConversion();
-
-      try {
-        const zip = new JSZip();
-        const contents = await zip.loadAsync(selectedFile);
-        
-        const originalFiles: FileInfo[] = [];
-        const convertedFiles: FileInfo[] = [];
-
-        for (const [filename, zipEntry] of Object.entries(contents.files)) {
-          if (!zipEntry.dir && filename.endsWith('.cs')) {
-            const content = await zipEntry.async('string');
-            const lines = countLines(content);
-            
-            originalFiles.push({
-              name: filename,
-              size: content.length,
-              content,
-              lines
-            });
-
-            // Simulate Java conversion (just rename .cs to .java and add some mock changes)
-            const javaFilename = filename.replace('.cs', '.java');
-            const javaContent = content
-              .replace(/namespace /g, 'package ')
-              .replace(/using /g, 'import ')
-              .replace(/class /g, 'public class ');
-            
-            convertedFiles.push({
-              name: javaFilename,
-              size: javaContent.length,
-              content: javaContent,
-              lines: countLines(javaContent)
-            });
-          }
-        }
-
-        setConversionResult({ originalFiles, convertedFiles });
-        setCurrentPage('result');
-      } catch (error) {
-        console.error('Conversion error:', error);
-        setErrorMessage('Failed to process files');
-        setCurrentPage('error');
-      }
-    }
   };
 
-  const simulateProgress = () => {
+  const simulateProgress = (setProgress: (val: number) => void) => {
     let currentProgress = 0;
     const interval = setInterval(() => {
-      currentProgress += Math.random() * 15;
-      if (currentProgress >= 100) {
-        currentProgress = 100;
-        clearInterval(interval);
+      // Gradually slow down progress increase as we approach 80%
+      if (currentProgress < 80) {
+        const increment = Math.random() * 2.5; 
+        currentProgress = Math.min(currentProgress + increment, 80);
+        setProgress(currentProgress);
       }
-      setProgress(Math.min(currentProgress, 100));
-    }, 500);
+    }, 700);
+
     return interval;
   };
 
-  const parseZipFiles = async (originalZip: File, convertedZipBlob: Blob) => {
-    try {
-      const zip = new JSZip();
-      
-      // Parse original files
-      const originalContents = await zip.loadAsync(originalZip);
-      const originalFiles: FileInfo[] = [];
-
-      for (const [filename, zipEntry] of Object.entries(originalContents.files)) {
-        if (!zipEntry.dir && filename.endsWith('.cs')) {
-          const content = await zipEntry.async('string');
-          const lines = countLines(content);
-          originalFiles.push({
-            name: filename,
-            size: content.length,
-            content,
-            lines
-          });
-        }
-      }
-
-      // Parse converted files
-      const convertedContents = await zip.loadAsync(convertedZipBlob);
-      const convertedFiles: FileInfo[] = [];
-
-      for (const [filename, zipEntry] of Object.entries(convertedContents.files)) {
-        if (!zipEntry.dir && filename.endsWith('.java')) {
-          const content = await zipEntry.async('string');
-          const lines = countLines(content);
-          convertedFiles.push({
-            name: filename,
-            size: content.length,
-            content,
-            lines
-          });
-        }
-      }
-
-      setConversionResult({ originalFiles, convertedFiles });
-    } catch (error) {
-      console.error('Error parsing zips:', error);
-      setErrorMessage('Failed to parse converted files');
-      setCurrentPage('error');
-    }
-  };
-
   const handleDownload = async () => {
-    if (!conversionResult) return;
-
+    if (!convertedFile?.zipFilename) {
+      setErrorMessage('No file available for download');
+      setCurrentPage('error');
+      return;
+    }
     try {
-      const zip = new JSZip();
-      
-      conversionResult.convertedFiles.forEach(file => {
-        zip.file(file.name, file.content);
-      });
-
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'converted-java-files.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-    //   setCurrentPage('success');
+      await fileDownload(convertedFile?.zipFilename);
     } catch (error) {
       console.error('Download error:', error);
       setErrorMessage('Failed to download files');
@@ -390,7 +266,6 @@ console.log(fileStats)
     setSelectedFile(null);
     setFileStats(null);
     setProgress(0);
-    setConversionResult(null);
     setErrorMessage('');
     setShowPreview(false);
   };
@@ -545,7 +420,7 @@ console.log(fileStats)
                 </div>
                 <p className="text-xs text-gray-700">{Math.round(progress)}% Complete</p>
                 <h3 className=" manrope-medium text-md text-gray-900">
-                {progress<30?'Analysing...':progress<80?'Converting .cs files to .java files':'Finalizing project...'}
+                {progress<30?'Analyzing dependencies......':progress<80?'Converting .cs files to .java files':'Finalizing project...'}
                 </h3>
             </div>
             </div>
@@ -553,7 +428,7 @@ console.log(fileStats)
         )}
 
         {/* Result Page */}
-        {currentPage === 'result' && conversionResult && (
+        {currentPage === 'result' && convertedFile && (
           <div className="space-y-6">
             <div className="flex flex-col items-center">
               <div className="flex flex-col sm:flex-row items-center max-w-4xl bg-white justify-center mb-6 gap-4 p-10 shadow-lg rounded-xl">
@@ -562,7 +437,7 @@ console.log(fileStats)
                     <h3 className="text-2xl text-gray-900 mb-2 text-center manrope-medium">Conversion Complete!</h3>
                     <h1 className='text-center text-md'>Your C# project has been successfully converted to Java with Quarkus.</h1>
                     <p className="text-gray-600 text-center text-sm">
-                        Successfully converted {conversionResult.originalFiles.length} files
+                        Successfully converted {convertedFile.conversion.convertedFiles.length} files
                     </p>
                 </div>
                 
@@ -585,7 +460,7 @@ console.log(fileStats)
                 </div>
 
               {/* Preview Section */}
-              {showPreview && conversionResult && (
+              {showPreview && convertedFile && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm px-4">
                     <div className="relative bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-6xl max-h-[90vh] overflow-y-auto p-6">
                     
@@ -611,7 +486,7 @@ console.log(fileStats)
                             </h4>
                         </div>
                         <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-2 p-5">
-                            {conversionResult.originalFiles.map((file, idx) => (
+                            {convertedFile.conversion.convertedFiles.map((file, idx) => (
                                 <div
                                     key={idx}
                                     className={`bg-white border-l-[3px] ${expandedIndex === idx?'border-l-[#70CBCF]':'border-neutral-300'} rounded-lg p-4 mb-6 transition-all duration-200`}
@@ -623,7 +498,7 @@ console.log(fileStats)
                                     className="w-full flex items-center justify-between text-left"
                                     >
                                     <p className="font-mono text-sm font-medium text-gray-800 truncate">
-                                        {file.name}
+                                        {file.original}
                                     </p>
                                     <span className="text-neutral-500 font-bold text-lg ml-2">
                                         {expandedIndex === idx ? <FaChevronUp /> : <FaChevronDown />}
@@ -634,7 +509,7 @@ console.log(fileStats)
                                     <div className="mt-3 animate-fadeIn">
                                         <pre className="text-xs bg-white p-3 rounded overflow-x-auto max-h-40 overflow-y-auto">
                                         <code className="text-gray-800">
-                                            {file.content}
+                                            {file.csharpContent}
                                         </code>
                                         </pre>
                                     </div>
@@ -654,7 +529,7 @@ console.log(fileStats)
                             </h4>
                         </div>
                         <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-2 p-5">
-                            {conversionResult.convertedFiles.map((file, idx) => (
+                            {convertedFile.conversion.convertedFiles.map((file, idx) => (
                                 <div
                                     key={idx}
                                     className={`bg-white border-l-[3px] ${
@@ -672,7 +547,7 @@ console.log(fileStats)
                                     className="w-full flex items-center justify-between text-left"
                                     >
                                     <p className="font-mono text-sm font-medium text-gray-800 truncate">
-                                        {file.name}
+                                        {file.converted}
                                     </p>
                                     <span className="text-neutral-500 font-bold text-lg ml-2">
                                         {expandedIndex === idx ? <FaChevronUp /> : <FaChevronDown />}
@@ -682,7 +557,7 @@ console.log(fileStats)
                                     {expandedIndex === idx && (
                                     <div className="mt-3 animate-fadeIn">
                                         <pre className="text-xs bg-white p-3 rounded overflow-x-auto max-h-40 overflow-y-auto">
-                                        <code className="text-gray-800">{file.content}</code>
+                                        <code className="text-gray-800">{file.javaContent}</code>
                                         </pre>
                                     </div>
                                     )}

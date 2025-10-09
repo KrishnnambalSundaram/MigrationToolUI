@@ -20,7 +20,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   if (loading) {
     // Optional: show a loader while checking auth
     return <div className='flex h-screen items-center justify-center'>
-      <Loader2 className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-6 text-blue-600 animate-spin" />
+      <Loader2 className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-6 text-[#70CBCF] animate-spin" />
       </div>;
   }
 

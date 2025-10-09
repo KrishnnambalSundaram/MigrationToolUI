@@ -7,6 +7,7 @@ interface User {
 }
 
 interface AuthContextType {
+  token: string;
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, email: string, password: string, company: string) => Promise<boolean>;
@@ -18,10 +19,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string>('');
   const [isAuthenticated,setIsAuthenticated] = useState<boolean>(false)
   useEffect(() => {
     // Check if user is logged in (from localStorage)
     const storedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('token')
+    token?setToken(token):setToken('')
     if (storedUser) {
       setIsAuthenticated(true)
       setUser(JSON.parse(storedUser));
@@ -38,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (response.status === 200 || response.status === 201) {
         setUser(response.data.user);
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('token', response.data.token);
         return true;
         } else {
         return false;
@@ -57,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (response.status === 200 || response.status === 201) {
         setUser(response.data.user || userData); // Use server response if available
         localStorage.setItem('user', JSON.stringify(response.data.user || userData));
+        localStorage.setItem('token', response.data.token || "");
         return true;
         } else {
         return false;
@@ -70,11 +76,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
   };
 
   return (
     <AuthContext.Provider
       value={{
+        token,
         user,
         login,
         signup,
