@@ -91,8 +91,7 @@ const Dashboard: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
-    const { logout,token } = useAuth();
-  console.log(token)
+    const { logout } = useAuth();
     const handleLogout = () => {
       logout();
       navigate('/login');
@@ -216,12 +215,10 @@ const Dashboard: React.FC = () => {
         const convertResponse = await fileConvert(uploadedFile.path);
         console.log(convertResponse);
         setConvertedFile(convertResponse);
-
-        clearInterval(progressInterval);
-
-        setProgress(100);
-
+        setProgress(99);
         setTimeout(() => {
+          setProgress(100);
+          clearInterval(progressInterval);
           setCurrentPage('result');
         }, 800);
       } catch (error) {
@@ -232,20 +229,19 @@ const Dashboard: React.FC = () => {
       }
   };
 
-  const simulateProgress = (setProgress: (val: number) => void) => {
-    let currentProgress = 0;
+  const simulateProgress = (setProgress: React.Dispatch<React.SetStateAction<number>>) => {
     const interval = setInterval(() => {
-      // Gradually slow down progress increase as we approach 80%
-      if (currentProgress < 80) {
-        const increment = Math.random() * 2.5; 
-        currentProgress = Math.min(currentProgress + increment, 80);
-        setProgress(currentProgress);
-      }
+      setProgress((currentProgress) => {
+        if (currentProgress < 80) {
+          const increment = Math.random() * 2; 
+          return Math.min(currentProgress + increment, 80);
+        }
+        return currentProgress;
+      });
     }, 700);
 
     return interval;
-  };
-
+};
   const handleDownload = async () => {
     if (!convertedFile?.zipFilename) {
       setErrorMessage('No file available for download');
