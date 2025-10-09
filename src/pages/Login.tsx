@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import Background from '../assets/expleo-background.svg';
-import Logo from '../assets/expleo-logo.svg';
+import Logo from '../assets/inflecto-logo.svg';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -54,7 +54,7 @@ const Login: React.FC = () => {
   <div className="absolute right-0 w-full max-w-md bg-[#FCFCFC] rounded-l-[32px] shadow-2xl p-8 md:p-10 overflow-auto h-screen">
    
           <div className="flex items-center justify-center mb-4">
-            <img src={Logo} alt="expleo-logo" />
+            <img src={Logo} alt="inflecto-logo" />
           </div>
           <h2 className="text-md font-regular text-gray-700 mb-6 text-center">
             Login to your account
