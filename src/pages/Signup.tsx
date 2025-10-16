@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import Background from '../assets/expleo-background.svg';
-import Logo from '../assets/inflecto-logo.svg';
+import Logo from '../assets/Javelin.svg';
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
