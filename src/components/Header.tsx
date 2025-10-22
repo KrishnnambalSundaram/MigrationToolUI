@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import Logo from '../assets/Javelin.svg'
+import Logo from '../assets/SmartMigrate.svg'
 
 
 type HeaderProps = {
