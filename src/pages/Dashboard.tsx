@@ -297,7 +297,7 @@ const Dashboard: React.FC = () => {
                 <p className="text-md mt-2 font-semibold text-gray-600">
                   Drop your file here or Browse
                 </p>
-                <p className="text-xs text-gray-500 mt-2 mb-5">Supports ZIP files up to 100MB</p>
+                <p className="text-xs text-gray-500 mt-2 mb-5">Supports ZIP files</p>
             </div>
 
             {selectedFile && fileStats && (

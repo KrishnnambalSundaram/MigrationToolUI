@@ -404,7 +404,7 @@ const App: React.FC = () => {
                     className="hidden"
                   />
                 </label>
-                <p className="text-xs text-gray-500 mt-4">Supports ZIP files up to 100MB</p>
+                <p className="text-xs text-gray-500 mt-4">Supports ZIP files</p>
               </div>
             </div>
 
