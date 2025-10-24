@@ -57,18 +57,35 @@ export const fileUpload = async (zipFile: File): Promise<UploadResponse> => {
 };
 
 export const fileConvert = async (zipFilePath: string): Promise<FilePathResponse> =>{
-    const token = await localStorage.getItem('token')
+    const token = localStorage.getItem('token');
+    
+    console.log('fileConvert called with:', { zipFilePath, token: token ? 'present' : 'missing' });
+    
+    if (!zipFilePath) {
+      throw new Error('Zip file path is required');
+    }
+    
+    if (!token) {
+      throw new Error('Authentication token is missing');
+    }
+    
   try {
     const response = await apiClient.post<FilePathResponse>('/convert', {"zipFilePath":zipFilePath}, {
       headers: {
-        Authorization: `Bearer ${token ? token : ''}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
+    console.log('fileConvert response:', response.data);
     return response.data;
   } catch (error) {
-    console.error(error);
-    throw new Error('Convert failed');
+    console.error('fileConvert error:', error);
+    
+    if (error instanceof Error) {
+      throw new Error(`Convert failed: ${error.message}`);
+    } else {
+      throw new Error('Convert failed: Unknown error');
+    }
   } 
 }
 

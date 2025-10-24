@@ -20,6 +20,7 @@ import useBackHandler from '../utils/hooks/useBackHandler.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useNavigate } from 'react-router-dom';
 import { fileConvert, fileDownload, fileUpload } from '../api/fileConvertAPI.js';
+import { connectSocket, disconnectSocket } from "../api/websocket.ts";
 
 type ConvertedFileItem = {
   original: string;
@@ -205,29 +206,72 @@ const Dashboard: React.FC = () => {
     }
     };
 
-  const handleConvert = async () => {
-    if (!selectedFile) return;
+  // const handleConvert = async () => {
+  //   if (!selectedFile) return;
 
+  //   setProgress(0);
+  //   const progressInterval = simulateProgress(setProgress);
+
+  //     try {
+  //       const convertResponse = await fileConvert(uploadedFile.path);
+  //       console.log(convertResponse);
+  //       setConvertedFile(convertResponse);
+  //       setProgress(99);
+  //       setTimeout(() => {
+  //         setProgress(100);
+  //         clearInterval(progressInterval);
+  //         setCurrentPage('result');
+  //       }, 800);
+  //     } catch (error) {
+  //       clearInterval(progressInterval);
+  //       console.error('Conversion error:', error);
+  //       setErrorMessage(error instanceof Error ? error.message : 'Conversion failed');
+  //       setCurrentPage('error');
+  //     }
+  // };
+const handleConvert = async () => {
+  if (!selectedFile) return;
+
+  try {
     setProgress(0);
-    const progressInterval = simulateProgress(setProgress);
+    setErrorMessage("");
 
-      try {
-        const convertResponse = await fileConvert(uploadedFile.path);
-        console.log(convertResponse);
-        setConvertedFile(convertResponse);
-        setProgress(99);
-        setTimeout(() => {
-          setProgress(100);
-          clearInterval(progressInterval);
-          setCurrentPage('result');
-        }, 800);
-      } catch (error) {
-        clearInterval(progressInterval);
-        console.error('Conversion error:', error);
-        setErrorMessage(error instanceof Error ? error.message : 'Conversion failed');
-        setCurrentPage('error');
+    const fileName = uploadedFile.path.split("/").pop() || "";
+    const jobId = `convert_${fileName.replace(/\.zip$/i, "")}`;
+
+    const socket = connectSocket(jobId);
+
+    socket.on("connect", () => {
+      console.log(`WebSocket connected! Socket ID: ${socket.id}, Job ID: ${jobId}`);
+    });
+
+    socket.on("progress-update", (data) => {
+      console.log(`Progress update: ${data.progress || 0}% - Status: ${data.status}`);
+      setProgress(data.progress || 0);
+
+      if (data.status === "completed") {
+        setConvertedFile(data.result);
+        setProgress(100);
+        setCurrentPage("result");
+
+        disconnectSocket(jobId);
+      } else if (data.status === "failed") {
+        setErrorMessage(data.error || "Conversion failed");
+        setCurrentPage("error");
+        disconnectSocket(jobId);
       }
-  };
+    });
+
+    await fileConvert(uploadedFile.path);
+    console.log("FileConvert API request sent. Progress will come via WebSocket.");
+
+  } catch (error) {
+    console.error("Conversion error:", error);
+    setErrorMessage(error instanceof Error ? error.message : "Conversion failed");
+    setCurrentPage("error");
+  }
+};
+
 
   const simulateProgress = (setProgress: React.Dispatch<React.SetStateAction<number>>) => {
     const interval = setInterval(() => {
@@ -378,12 +422,13 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <button
-                  disabled={fileStats.totalFiles===0}
+                  disabled={fileStats.totalFiles>20}
                   onClick={handleConvert}
-                  className={`w-full py-3 sm:py-4 text-white rounded-lg transition font-semibold text-base shadow-l ${fileStats.totalFiles===0?'cursor-not-allowed bg-[#E46356]/50':'cursor pointer bg-[#E46356]'}`}
+                  className={`w-full py-3 sm:py-4 text-white rounded-lg transition font-semibold text-base shadow-l ${fileStats.totalFiles>20?'cursor-not-allowed bg-[#E46356]/50':'cursor-pointer bg-[#E46356]'}`}
                 >
                   Start Conversion
                 </button>
+                {fileStats.totalFiles > 20 && <p className='p-2 text-[#E46356] text-center'>Too many .CS files — please split and reupload the ZIP.</p>}
               </div>
             )}
           </div>
