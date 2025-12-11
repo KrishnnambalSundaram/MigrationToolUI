@@ -272,20 +272,6 @@ const handleConvert = async () => {
   }
 };
 
-
-  const simulateProgress = (setProgress: React.Dispatch<React.SetStateAction<number>>) => {
-    const interval = setInterval(() => {
-      setProgress((currentProgress) => {
-        if (currentProgress < 80) {
-          const increment = Math.random() * 2; 
-          return Math.min(currentProgress + increment, 80);
-        }
-        return currentProgress;
-      });
-    }, 700);
-
-    return interval;
-};
   const handleDownload = async () => {
     if (!convertedFile?.zipFilename) {
       setErrorMessage('No file available for download');
